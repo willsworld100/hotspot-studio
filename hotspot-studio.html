@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hotspot Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:#06283d;
+  --offwhite:#f9f8f4;
+  --accent:#4f9d69;
+  --shadow:0 3px 10px rgba(0,0,0,0.08);
+}
+body {
+  font-family:"Lexend", system-ui, sans-serif;
+  background:var(--offwhite);
+  color:var(--navy);
+  margin:0;
+  padding:1rem;
+  -webkit-font-smoothing:antialiased;
+}
+header {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:0.75rem;
+  margin-bottom:1rem;
+}
+h1 { font-size:1.7rem; margin:0; font-weight:600; }
+button, label { font-family:inherit; cursor:pointer; border:none; }
+button, .btn {
+  background:var(--navy);
+  color:var(--offwhite);
+  padding:0.5rem 1rem;
+  border-radius:0.75rem;
+  box-shadow:var(--shadow);
+  transition:background 0.2s, transform 0.1s;
+}
+button:hover, .btn:hover { background:#0c3e57; transform:translateY(-1px); }
+button.ghost { background:transparent; border:2px solid rgba(6,40,61,0.25); color:var(--navy); }
+button.ghost:hover { background:rgba(6,40,61,0.05); }
+input[type=file] { display:none; }
+
+.container { display:flex; gap:1rem; }
+.stage { position:relative; display:inline-block; background:#fff; border-radius:1rem; box-shadow:var(--shadow); padding:0.5rem; flex:1; }
+.stage img { max-width:100%; display:block; border-radius:0.75rem; }
+
+.hotspot { position:absolute; transform:translate(-50%,-50%); cursor:pointer; transition:transform 0.2s ease; }
+.hotspot .dot { border-radius:50%; border:3px solid #fff; transition:transform 0.2s ease; box-shadow:0 0 6px rgba(0,0,0,0.2); }
+.hotspot:hover .dot { transform:scale(1.2); }
+.hotspot .label {
+  position:absolute;
+  top:-220%;
+  left:50%;
+  transform:translateX(-50%);
+  background:#fff;
+  padding:8px 12px;
+  border-radius:8px;
+  box-shadow:0 3px 10px rgba(0,0,0,0.15);
+  display:none;
+  min-width:150px;
+  color:var(--navy);
+  font-size:0.9rem;
+  line-height:1.4;
+  z-index:2;
+}
+.hotspot:hover .label { display:block; }
+
+#summary {
+  flex-basis:220px;
+  max-height:500px;
+  overflow-y:auto;
+  background:#fff;
+  border-radius:0.75rem;
+  padding:0.5rem;
+  box-shadow:var(--shadow);
+}
+#summary h3 { margin-top:0; font-size:1rem; }
+#summary ul { padding-left:1.2rem; margin:0; }
+#summary #completion { font-size:0.85rem; margin-top:0.3rem; color:#06283d; }
+
+.controls { display:flex; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem; }
+#editorOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:none; align-items:center; justify-content:center; }
+#editorBox { background:#fff; border-radius:1rem; padding:1rem; max-width:340px; width:90%; box-shadow:0 4px 20px rgba(0,0,0,0.3); }
+#editorBox label { display:block; margin-top:0.5rem; font-weight:600; }
+#editorBox input, #editorBox textarea { width:100%; margin-top:0.25rem; padding:0.4rem; border:1px solid #ccc; border-radius:0.5rem; font-family:inherit; }
+#editorBox textarea { resize:vertical; min-height:60px; }
+#editorBox .actions { margin-top:0.75rem; text-align:right; }
+.mode-indicator { font-weight:600; padding:0.3rem 0.6rem; border-radius:0.5rem; background:#e3e8ef; color:var(--navy); }
+
+/* Explore mode hidden & pulse */
+.explore-mode .hotspot .dot { opacity:0; transition:opacity 0.3s ease; }
+.explore-mode .hotspot:hover .dot { opacity:1; animation:pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%{transform:scale(1); box-shadow:0 0 0 0 rgba(79,157,105,0.4);} 70%{transform:scale(1.25); box-shadow:0 0 0 12px rgba(79,157,105,0);} 100%{transform:scale(1); box-shadow:0 0 0 0 rgba(79,157,105,0);} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hotspot Studio by will salter</h1>
+  <div class="controls">
+    <label class="btn" for="fileImage">📁 Upload image</label>
+    <input id="fileImage" type="file" accept="image/*" />
+    <label class="btn ghost" for="fileScene">📂 Load scene</label>
+    <input id="fileScene" type="file" accept="application/json" />
+    <button id="btnSave" class="ghost">💾 Save JSON</button>
+    <button id="btnUndo" class="ghost">↩️ Undo</button>
+    <button id="btnToggleMode" class="btn">🎓 Switch to Explore Mode</button>
+    <button id="btnResetSummary" class="ghost">🔄 Reset Explore</button>
+    <span id="modeIndicator" class="mode-indicator">Author Mode</span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="stage" id="stage">
+    <p style="color:#476072;">Upload an image to begin.</p>
+  </div>
+  <div id="summary">
+    <h3>Found Hotspots</h3>
+    <ul id="foundList"></ul>
+    <div id="completion"></div>
+  </div>
+</div>
+
+<!-- hotspot editor popup -->
+<div id="editorOverlay">
+  <div id="editorBox">
+    <h2 style="margin-top:0">Edit Hotspot</h2>
+    <label>Title <input id="editTitle" type="text"></label>
+    <label>Text <textarea id="editText"></textarea></label>
+    <label>Colour <input id="editColor" type="color"></label>
+    <label>Size <input id="editSize" type="number" min="8" max="100"></label>
+    <div class="actions">
+      <button id="btnCloseEditor" class="ghost">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const fileInput=document.getElementById('fileImage');
+const fileSceneInput=document.getElementById('fileScene');
+const stage=document.getElementById('stage');
+const btnSave=document.getElementById('btnSave');
+const btnToggleMode=document.getElementById('btnToggleMode');
+const btnUndo=document.getElementById('btnUndo');
+const btnResetSummary=document.getElementById('btnResetSummary');
+const modeIndicator=document.getElementById('modeIndicator');
+const foundList=document.getElementById('foundList');
+const completion=document.getElementById('completion');
+
+let scene={imageDataUrl:null,hotspots:[]};
+let currentEditIndex=null;
+let isExploreMode=false;
+let foundSet=new Set();
+
+// util
+function readFileAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsDataURL(file);});}
+function readFileAsText(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsText(file);});}
+
+// Upload image
+fileInput.addEventListener('change',async e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+  const dataUrl=await readFileAsDataURL(file);
+  scene.imageDataUrl=dataUrl;
+  scene.hotspots=[];
+  foundSet.clear();
+  renderScene();
+  updateSummary();
+});
+
+// Load scene
+fileSceneInput.addEventListener('change',async e=>{
+  const file=e.target.files[0];
+  if(!file)return;
+  const text=await readFileAsText(file);
+  try{ scene=JSON.parse(text); foundSet.clear(); renderScene(); updateSummary();}catch(err){alert('Invalid JSON');}
+});
+
+// Render scene
+function renderScene(){
+  stage.innerHTML='';
+  if(!scene.imageDataUrl){ stage.innerHTML='<p style="color:#476072;">Upload an image to begin.</p>'; return;}
+  const img=document.createElement('img');
+  img.src=scene.imageDataUrl;
+  stage.appendChild(img);
+  img.onload=()=>{scene.width=img.naturalWidth; scene.height=img.naturalHeight;};
+  scene.hotspots.forEach((h,i)=>stage.appendChild(makeHotspot(h,i)));
+}
+
+// Add hotspot
+stage.addEventListener('click',e=>{
+  if(isExploreMode) return;
+  const img=stage.querySelector('img');
+  if(!img||e.target!==img)return;
+  const rect=img.getBoundingClientRect();
+  const x=((e.clientX-rect.left)/rect.width)*100;
+  const y=((e.clientY-rect.top)/rect.height)*100;
+  const h={x,y,color:'#4f9d69',size:22,title:'New hotspot',text:'Edit me'};
+  scene.hotspots.push(h);
+  stage.appendChild(makeHotspot(h,scene.hotspots.length-1));
+});
+
+// Make hotspot
+function makeHotspot(h,i){
+  const hs=document.createElement('div');
+  hs.className='hotspot';
+  hs.style.left=h.x+'%';
+  hs.style.top=h.y+'%';
+  hs.dataset.index=i;
+  const dot=document.createElement('div'); dot.className='dot'; dot.style.background=h.color; dot.style.width=h.size+'px'; dot.style.height=h.size+'px';
+  hs.appendChild(dot);
+  const label=document.createElement('div'); label.className='label'; label.innerHTML='<strong>'+h.title+'</strong><br>'+h.text; hs.appendChild(label);
+
+  if(!isExploreMode){
+    hs.addEventListener('click',ev=>{ ev.stopPropagation(); openEditor(i); });
+  } else {
+    hs.style.cursor='help';
+    hs.addEventListener('mouseenter',()=>{ 
+      if(!foundSet.has(i)){foundSet.add(i); updateSummary();}
+    });
+  }
+  return hs;
+}
+
+// Editor
+const overlay=document.getElementById('editorOverlay');
+const editTitle=document.getElementById('editTitle');
+const editText=document.getElementById('editText');
+const editColor=document.getElementById('editColor');
+const editSize=document.getElementById('editSize');
+const btnClose=document.getElementById('btnCloseEditor');
+
+function openEditor(i){ if(isExploreMode) return; currentEditIndex=i; const h=scene.hotspots[i]; editTitle.value=h.title; editText.value=h.text; editColor.value=h.color; editSize.value=h.size; overlay.style.display='flex'; }
+function updateHotspot(){ if(currentEditIndex===null)return; const h=scene.hotspots[currentEditIndex]; h.title=editTitle.value; h.text=editText.value; h.color=editColor.value; h.size=parseInt(editSize.value)||22; renderScene(); }
+[editTitle,editText,editColor,editSize].forEach(inp=>inp.addEventListener('input',updateHotspot));
+btnClose.addEventListener('click',()=>{ overlay.style.display='none'; currentEditIndex=null; });
+
+// Undo
+btnUndo.addEventListener('click',()=>{ if(isExploreMode) return; scene.hotspots.pop(); renderScene(); });
+
+// Save JSON
+btnSave.addEventListener('click',()=>{ const json=JSON.stringify(scene,null,2); const blob=new Blob([json],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='hotspot-scene.json'; a.click(); URL.revokeObjectURL(a.href); });
+
+// Toggle mode
+btnToggleMode.addEventListener('click',()=>{
+  isExploreMode=!isExploreMode;
+  document.body.classList.toggle('explore-mode',isExploreMode);
+  foundSet.clear(); updateSummary();
+  if(isExploreMode){ btnToggleMode.textContent='✏️ Switch to Author Mode'; modeIndicator.textContent='Explore Mode'; btnUndo.style.display='none'; btnResetSummary.style.display='inline-block'; } 
+  else { btnToggleMode.textContent='🎓 Switch to Explore Mode'; modeIndicator.textContent='Author Mode'; btnUndo.style.display='inline-block'; btnResetSummary.style.display='none'; }
+  renderScene();
+});
+
+// Reset summary
+btnResetSummary.addEventListener('click',()=>{
+  foundSet.clear();
+  updateSummary();
+});
+
+// Update summary
+function updateSummary(){
+  foundList.innerHTML='';
+  foundSet.forEach(i=>{
+    const li=document.createElement('li');
+    li.innerHTML='<strong>'+scene.hotspots[i].title+'</strong>: '+scene.hotspots[i].text;
+    foundList.appendChild(li);
+  });
+  if(scene.hotspots.length>0){
+    completion.textContent=`Found ${foundSet.size} of ${scene.hotspots.length} hotspots (${Math.round(foundSet.size/scene.hotspots.length*100)}%)`;
+  } else { completion.textContent=''; }
+}
+</script>
+</body>
+</html>
