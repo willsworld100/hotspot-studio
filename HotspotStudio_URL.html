@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Hotspot Studio — URL Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#06283d;--offwhite:#f9f8f4;--accent:#4f9d69;--muted:#476072;}
+html,body{height:100%;margin:0;background:var(--offwhite);color:var(--navy);font-family:"Lexend",system-ui, -apple-system, "Segoe UI", Roboto, Arial;}
+.app{padding:14px;box-sizing:border-box;display:flex;flex-direction:column;gap:12px;height:100%;}
+.header{display:flex;flex-direction:column;gap:6px}
+.title-row{display:flex;align-items:center;gap:12px}
+h1{margin:0;font-size:20px}
+.credit{color:var(--muted);font-size:13px}
+.top-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+button,select,input,textarea{font-family:inherit}
+.btn{background:var(--navy);color:var(--offwhite);border:none;padding:8px 12px;border-radius:8px;cursor:pointer}
+.btn.ghost{background:transparent;border:1px solid rgba(6,40,61,0.12);color:var(--navy)}
+.small{font-size:13px;color:var(--muted)}
+.main{display:flex;gap:12px;flex:1;min-height:0}
+.panel{width:320px;background:#fff;border-radius:10px;padding:12px;box-shadow:0 6px 20px rgba(6,40,61,0.06);overflow:auto}
+.stage-wrap{flex:1;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;min-width:0}
+.stage{background:#fff;border-radius:10px;padding:12px;box-shadow:0 6px 18px rgba(6,40,61,0.06);max-width:100%;max-height:100%;overflow:auto;display:flex;align-items:center;justify-content:center;min-height:360px}
+.scene{position:relative;display:inline-block;user-select:none;outline:4px solid rgba(6,40,61,0.03);border-radius:6px;padding:6px}
+.scene img{display:block;max-width:calc(100vw - 520px);max-height:calc(100vh - 240px);border-radius:6px}
+.hotspot{position:absolute;transform:translate(-50%,-50%);cursor:pointer;z-index:2}
+.dot{border-radius:50%;border:3px solid rgba(255,255,255,0.95);box-shadow:0 6px 14px rgba(6,40,61,0.12);display:block}
+.label{position:absolute;top:-220%;left:50%;transform:translateX(-50%);background:#fff;padding:8px 10px;border-radius:8px;box-shadow:0 8px 22px rgba(6,40,61,0.12);display:none;color:var(--navy);min-width:150px}
+.hotspot:hover .label{display:block}
+.smallmuted{color:var(--muted);font-size:13px}
+.list{margin-top:8px;max-height:260px;overflow:auto}
+.item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;margin-bottom:6px;background:rgba(6,40,61,0.02)}
+.mini{width:18px;height:18px;border-radius:50%}
+.footer{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px}
+.editor-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.35);display:none;align-items:center;justify-content:center}
+.editor-box{background:#fff;border-radius:12px;padding:14px;width:360px;box-shadow:0 8px 40px rgba(6,40,61,0.16)}
+.editor-box label{display:block;margin-top:8px;font-weight:600}
+.editor-box input,.editor-box textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(6,40,61,0.08);margin-top:6px;font-family:inherit}
+.editor-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.mode-ind{padding:6px 8px;border-radius:8px;background:#eef3f6;color:var(--navy);font-weight:700}
+.row{display:flex;gap:8px;align-items:center}
+input[type="file"]{display:none}
+.url-input{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(6,40,61,0.08)}
+@media(max-width:900px){.panel{width:100%}.scene img{max-width:calc(100vw - 48px);max-height:60vh}}
+</style>
+</head>
+<body>
+<div class="app" role="application" aria-label="Hotspot Studio URL Edition">
+  <header class="header">
+    <div class="title-row">
+      <h1>Hotspot Studio</h1>
+      <div class="mode-ind" id="modeIndicator">Author Mode</div>
+    </div>
+    <div class="smallmuted credit">- Will Salter (URL edition)</div>
+    <div class="top-controls" aria-hidden="false">
+      <label class="btn" for="fileImage">📁 Upload image</label>
+      <input id="fileImage" type="file" accept="image/*" />
+      <button class="btn ghost" id="btnLoadImageUrl">🔗 Load Image from URL</button>
+
+      <label class="btn ghost" for="fileScene">📂 Load Scene (file)</label>
+      <input id="fileScene" type="file" accept="application/json" />
+
+      <button class="btn ghost" id="btnLoadSceneUrl">🔗 Load Scene from URL</button>
+
+      <button class="btn ghost" id="btnSave">💾 Save JSON</button>
+      <button class="btn ghost" id="btnUndo">↩️ Undo</button>
+      <button class="btn" id="btnToggleMode">🎓 Switch to Explore Mode</button>
+      <button class="btn ghost" id="btnResetSummary">🔄 Reset Explore</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="panel" aria-label="Controls">
+      <div><strong class="smallmuted">Selected hotspot</strong></div>
+      <div id="noSelection" class="smallmuted" style="margin-top:6px">No hotspot selected — click one on the image to edit.</div>
+
+      <div id="editor" style="display:none">
+        <label class="smallmuted">Title</label>
+        <input id="hotTitle" type="text" />
+        <label class="smallmuted">Text</label>
+        <textarea id="hotText"></textarea>
+        <div class="row" style="margin-top:8px">
+          <div style="flex:1">
+            <label class="smallmuted">Colour</label>
+            <input id="hotColor" type="color" />
+          </div>
+          <div style="width:120px">
+            <label class="smallmuted">Size</label>
+            <input id="hotSize" type="range" min="14" max="48" value="22" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;gap:8px">
+          <button class="btn ghost" id="btnDeleteHot">Delete</button>
+          <button class="btn ghost" id="btnCloseEditor">Close</button>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <strong class="smallmuted">Hotspot list</strong>
+        <div class="list" id="hotspotList" aria-live="polite"></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <strong class="smallmuted">Found Hotspots</strong>
+        <div id="foundList" style="margin-top:8px;font-size:14px;color:var(--muted)"></div>
+        <div id="completion" class="smallmuted" style="margin-top:8px"></div>
+      </div>
+    </aside>
+
+    <div class="stage-wrap">
+      <div class="stage" id="stage">
+        <div id="scene" class="scene author" tabindex="0" aria-label="Hotspot scene">
+          <div id="emptyPrompt" style="padding:36px;text-align:center;color:var(--muted)">
+            No image yet — upload or load one to begin.
+          </div>
+        </div>
+      </div>
+
+      <div class="footer smallmuted">Hotspot Studio — URL edition. Keep your original file safe.</div>
+    </div>
+  </div>
+</div>
+
+<!-- editor modal -->
+<div class="editor-overlay" id="editorOverlay" role="dialog" aria-modal="true">
+  <div class="editor-box">
+    <h3 style="margin:0 0 6px 0">Edit Hotspot</h3>
+    <label>Title <input id="editTitle" type="text" /></label>
+    <label>Text <textarea id="editText"></textarea></label>
+    <label>Colour <input id="editColor" type="color" /></label>
+    <label>Size <input id="editSize" type="number" min="8" max="100" /></label>
+    <div class="editor-actions">
+      <button class="btn ghost" id="btnCloseEditorModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/*
+  Hotspot Studio — URL edition
+  - Supports local uploads AND loading images by URL (including Google Drive share links)
+  - Supports loading scene JSON from file or from a URL
+  - Scene model:
+      {
+        imageDataUrl?: string,    // embedded base64 (used when author uploads local file and saves)
+        imageURL?: string,        // external URL (Drive or hosted)
+        hotspots: [{id,x,y,color,size,title,text}]
+      }
+*/
+
+(() => {
+  // Elements
+  const fileImage = document.getElementById('fileImage');
+  const btnLoadImageUrl = document.getElementById('btnLoadImageUrl');
+  const fileScene = document.getElementById('fileScene');
+  const btnLoadSceneUrl = document.getElementById('btnLoadSceneUrl');
+  const btnSave = document.getElementById('btnSave');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnToggleMode = document.getElementById('btnToggleMode');
+  const btnResetSummary = document.getElementById('btnResetSummary');
+
+  const sceneEl = document.getElementById('scene');
+  const emptyPrompt = document.getElementById('emptyPrompt');
+  const hotspotList = document.getElementById('hotspotList');
+
+  const noSelection = document.getElementById('noSelection');
+  const editorPanel = document.getElementById('editor');
+  const hotTitle = document.getElementById('hotTitle');
+  const hotText = document.getElementById('hotText');
+  const hotColor = document.getElementById('hotColor');
+  const hotSize = document.getElementById('hotSize');
+  const btnDeleteHot = document.getElementById('btnDeleteHot');
+  const btnCloseEditor = document.getElementById('btnCloseEditor');
+
+  const editorOverlay = document.getElementById('editorOverlay');
+  const editTitle = document.getElementById('editTitle');
+  const editText = document.getElementById('editText');
+  const editColor = document.getElementById('editColor');
+  const editSize = document.getElementById('editSize');
+  const btnCloseEditorModal = document.getElementById('btnCloseEditorModal');
+
+  const foundListEl = document.getElementById('foundList');
+  const completionEl = document.getElementById('completion');
+  const modeIndicator = document.getElementById('modeIndicator');
+
+  // state
+  let scene = { imageDataUrl: null, imageURL: null, hotspots: [] };
+  let selectedHotId = null;
+  let isExploreMode = false;
+  let foundSet = new Set();
+
+  // utils
+  const uid = () => 'h' + Math.random().toString(36).slice(2,9);
+  const pct = (v) => Math.round(v*100)/100;
+  const escapeHtml = (s) => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // -------------------------
+  // Load image from local file
+  // -------------------------
+  fileImage.addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    try {
+      const dataUrl = await readFileAsDataURL(f);
+      scene.imageDataUrl = dataUrl;
+      scene.imageURL = null;
+      scene.hotspots = [];
+      foundSet.clear();
+      renderScene();
+    } catch (err) {
+      alert('Error loading image: ' + err.message);
+    } finally {
+      fileImage.value = '';
+    }
+  });
+
+  // -------------------------
+  // Load image from URL button
+  // -------------------------
+  btnLoadImageUrl.addEventListener('click', async () => {
+    const url = prompt('Paste an image URL (or Google Drive share link):');
+    if(!url) return;
+    const direct = convertDriveUrlToDirect(url.trim());
+    try {
+      // try to fetch the image to check it loads
+      await checkImageLoadable(direct);
+      scene.imageURL = direct;
+      scene.imageDataUrl = null; // prefer URL when set
+      scene.hotspots = [];
+      foundSet.clear();
+      renderScene();
+      alert('Image loaded from URL.');
+    } catch (err) {
+      alert('Could not load image from that URL. Error: ' + err.message + '\nIf the image is in Google Drive, make sure the file is shared "Anyone with the link – Viewer".');
+    }
+  });
+
+  // -------------------------
+  // Load scene from local file (JSON)
+  // -------------------------
+  fileScene.addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    try {
+      const text = await readFileAsText(f);
+      const obj = JSON.parse(text);
+      await applyLoadedScene(obj);
+      alert('Scene loaded from file.');
+    } catch (err) {
+      alert('Failed to load scene: ' + err.message);
+    } finally {
+      fileScene.value = '';
+    }
+  });
+
+  // -------------------------
+  // Load scene from URL (JSON)
+  // -------------------------
+  btnLoadSceneUrl.addEventListener('click', async () => {
+    const url = prompt('Paste a scene JSON URL (e.g. hosted file or Google Drive link):');
+    if(!url) return;
+    const direct = convertDriveUrlToDirect(url.trim());
+    try {
+      const res = await fetch(direct, {mode:'cors'});
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      const obj = await res.json();
+      await applyLoadedScene(obj);
+      alert('Scene loaded from URL.');
+    } catch (err) {
+      alert('Could not fetch scene JSON from that URL. Error: ' + err.message + '\nIf using Google Drive, ensure the file is shared and allow public view.');
+    }
+  });
+
+  // -------------------------
+  // Save (export) scene
+  // -------------------------
+  btnSave.addEventListener('click', () => {
+    // ensure exported JSON includes either imageURL (if set) or embedded imageDataUrl (if available)
+    const exportObj = { hotspots: scene.hotspots.slice() };
+    if(scene.imageURL) exportObj.imageURL = scene.imageURL;
+    else if(scene.imageDataUrl) exportObj.imageDataUrl = scene.imageDataUrl;
+    else exportObj.imageURL = null;
+    downloadData(JSON.stringify(exportObj, null, 2), 'hotspot-scene.json', 'application/json');
+  });
+
+  // -------------------------
+  // Undo (last hotspot)
+  // -------------------------
+  btnUndo.addEventListener('click', () => {
+    if(isExploreMode) return;
+    scene.hotspots.pop();
+    renderScene();
+  });
+
+  // -------------------------
+  // Toggle mode
+  // -------------------------
+  btnToggleMode.addEventListener('click', () => {
+    isExploreMode = !isExploreMode;
+    document.body.classList.toggle('explore-mode', isExploreMode);
+    modeIndicator.textContent = isExploreMode ? 'Explore Mode' : 'Author Mode';
+    foundSet.clear();
+    updateSummary();
+    renderScene();
+  });
+
+  // -------------------------
+  // Reset summary
+  // -------------------------
+  btnResetSummary.addEventListener('click', () => {
+    foundSet.clear();
+    updateSummary();
+  });
+
+  // -------------------------
+  // Scene rendering
+  // -------------------------
+  function renderScene() {
+    sceneEl.innerHTML = '';
+    if(!scene.imageDataUrl && !scene.imageURL) {
+      sceneEl.appendChild(emptyPrompt);
+      return;
+    }
+    const img = document.createElement('img');
+    img.alt = 'Hotspot scene image';
+    img.draggable = false;
+    if(scene.imageURL) img.src = scene.imageURL;
+    else img.src = scene.imageDataUrl;
+    sceneEl.appendChild(img);
+
+    img.onload = () => {
+      // create hotspots
+      scene.hotspots.forEach(h => {
+        const el = makeHotspotElement(h);
+        sceneEl.appendChild(el);
+      });
+      rebuildHotspotList();
+    };
+
+    img.onerror = () => {
+      alert('Image failed to load. If using a Drive link, make sure the file is shared so anyone with the link can view it.');
+      scene.imageURL = null;
+      scene.imageDataUrl = null;
+      scene.hotspots = [];
+      sceneEl.innerHTML = '';
+      sceneEl.appendChild(emptyPrompt);
+    };
+  }
+
+  // -------------------------
+  // Make hotspot element
+  // -------------------------
+  function makeHotspotElement(h) {
+    const hs = document.createElement('button');
+    hs.className = 'hotspot';
+    hs.type = 'button';
+    hs.dataset.id = h.id;
+    hs.style.left = h.x + '%';
+    hs.style.top = h.y + '%';
+    hs.style.width = (h.size + 8) + 'px';
+    hs.style.height = (h.size + 8) + 'px';
+
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    dot.style.background = h.color;
+    dot.style.width = h.size + 'px';
+    dot.style.height = h.size + 'px';
+    hs.appendChild(dot);
+
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.innerHTML = '<strong>' + escapeHtml(h.title || '') + '</strong><div style="margin-top:6px;font-weight:400;font-size:13px;line-height:1.3">' + escapeHtml(h.text || '') + '</div>';
+    hs.appendChild(label);
+
+    hs.addEventListener('click', (evt) => {
+      evt.stopPropagation();
+      if(isExploreMode) {
+        const id = h.id;
+        if(!foundSet.has(id)) {
+          foundSet.add(id);
+          updateSummary();
+        }
+        // allow label toggle on touch if needed
+        hs.dataset.open = hs.dataset.open === 'true' ? '' : 'true';
+        return;
+      }
+      selectHotspot(h.id);
+    });
+
+    hs.addEventListener('mouseenter', () => {
+      if(isExploreMode && !foundSet.has(h.id)) {
+        foundSet.add(h.id);
+        updateSummary();
+      }
+    });
+
+    // dragging in author mode
+    let dragging = null;
+    hs.addEventListener('pointerdown', (ev) => {
+      if(isExploreMode) return;
+      ev.preventDefault();
+      hs.setPointerCapture?.(ev.pointerId);
+      dragging = { id: ev.pointerId };
+    });
+    hs.addEventListener('pointermove', (ev) => {
+      if(isExploreMode || !dragging) return;
+      const img = sceneEl.querySelector('img');
+      if(!img) return;
+      const rect = img.getBoundingClientRect();
+      let x = (ev.clientX - rect.left) / rect.width;
+      let y = (ev.clientY - rect.top) / rect.height;
+      x = Math.max(0,Math.min(1,x)); y = Math.max(0,Math.min(1,y));
+      hs.style.left = (x*100) + '%';
+      hs.style.top = (y*100) + '%';
+    });
+    hs.addEventListener('pointerup', (ev) => {
+      if(!dragging) return;
+      hs.releasePointerCapture?.(ev.pointerId);
+      dragging = null;
+      // write back to scene model
+      const left = parseFloat(hs.style.left); const top = parseFloat(hs.style.top);
+      const hot = scene.hotspots.find(x=>x.id===h.id);
+      if(hot){ hot.x = left; hot.y = top; saveToTemp(); rebuildHotspotList(); }
+    });
+
+    return hs;
+  }
+
+  // -------------------------
+  // Select / edit hotspot
+  // -------------------------
+  function selectHotspot(id) {
+    const hot = scene.hotspots.find(h => h.id === id);
+    if(!hot) return;
+    selectedHotId = id;
+    noSelection.style.display = 'none';
+    editorPanel.style.display = 'block';
+    hotTitle.value = hot.title || '';
+    hotText.value = hot.text || '';
+    hotColor.value = hot.color || '#ff6b6b';
+    hotSize.value = hot.size || 22;
+
+    hotTitle.oninput = () => { hot.title = hotTitle.value; updateHotUI(id); saveToTemp(); rebuildHotspotList(); };
+    hotText.oninput = () => { hot.text = hotText.value; updateHotUI(id); saveToTemp(); };
+    hotColor.oninput = () => { hot.color = hotColor.value; updateHotUI(id); saveToTemp(); rebuildHotspotList(); };
+    hotSize.oninput = () => { hot.size = parseInt(hotSize.value,10); updateHotUI(id); saveToTemp(); rebuildHotspotList(); };
+
+    btnDeleteHot.onclick = () => {
+      if(!confirm('Delete this hotspot?')) return;
+      scene.hotspots = scene.hotspots.filter(h => h.id !== id);
+      selectedHotId = null;
+      renderScene();
+      saveToTemp();
+    };
+
+    btnCloseEditor.onclick = () => { deselectHotspot(); };
+    // Visual highlight
+    Array.from(sceneEl.querySelectorAll('.hotspot')).forEach(el => { el.style.boxShadow = (el.dataset.id === id) ? '0 8px 22px rgba(43,140,255,0.12)' : 'none'; });
+  }
+
+  function deselectHotspot() {
+    selectedHotId = null;
+    editorPanel.style.display = 'none';
+    noSelection.style.display = 'block';
+    Array.from(sceneEl.querySelectorAll('.hotspot')).forEach(el => el.style.boxShadow = 'none');
+  }
+
+  function updateHotUI(id) {
+    const hot = scene.hotspots.find(h=>h.id===id); if(!hot) return;
+    const el = sceneEl.querySelector(`.hotspot[data-id="${id}"]`);
+    if(el) {
+      const dot = el.querySelector('.dot'); dot.style.background = hot.color; dot.style.width = hot.size + 'px'; dot.style.height = hot.size + 'px';
+      el.style.width = (hot.size + 8) + 'px'; el.style.height = (hot.size + 8) + 'px';
+      const label = el.querySelector('.label'); label.innerHTML = '<strong>' + escapeHtml(hot.title || '') + '</strong><div style="margin-top:6px;font-weight:400;font-size:13px;line-height:1.3">' + escapeHtml(hot.text || '') + '</div>';
+    }
+  }
+
+  // -------------------------
+  // Hotspot list & summary
+  // -------------------------
+  function rebuildHotspotList() {
+    hotspotList.innerHTML = '';
+    scene.hotspots.forEach((h, idx) => {
+      const item = document.createElement('div'); item.className = 'item'; item.dataset.id = h.id;
+      const mini = document.createElement('div'); mini.className = 'mini'; mini.style.background = h.color; item.appendChild(mini);
+      const info = document.createElement('div'); info.style.flex = '1'; info.innerHTML = '<div style="font-weight:600;font-size:14px">' + escapeHtml(h.title || 'Untitled') + '</div><div class="smallmuted">x:' + pct(h.x) + '%, y:' + pct(h.y) + '%</div>'; item.appendChild(info);
+      const edit = document.createElement('button'); edit.className = 'btn ghost'; edit.textContent = 'Edit'; edit.onclick = () => { selectHotspot(h.id); };
+      item.appendChild(edit);
+      hotspotList.appendChild(item);
+    });
+  }
+
+  function updateSummary() {
+    foundListEl.innerHTML = '';
+    Array.from(foundSet).forEach(id => {
+      const hot = scene.hotspots.find(h => h.id === id);
+      if(!hot) return;
+      const d = document.createElement('div'); d.innerHTML = '<strong>' + escapeHtml(hot.title) + '</strong>: ' + escapeHtml(hot.text); foundListEl.appendChild(d);
+    });
+    if(scene.hotspots.length > 0) {
+      completionEl.textContent = `Found ${foundSet.size} of ${scene.hotspots.length} hotspots (${ Math.round(foundSet.size / scene.hotspots.length * 100) }%)`;
+    } else completionEl.textContent = '';
+  }
+
+  // -------------------------
+  // Add hotspot on click (author)
+  // -------------------------
+  sceneEl.addEventListener('click', (e) => {
+    if(isExploreMode) return;
+    const img = sceneEl.querySelector('img'); if(!img) return;
+    if(e.target && e.target.closest('.hotspot')) return; // clicked on hotspot already
+    const rect = img.getBoundingClientRect();
+    if(e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) return;
+    const x = (e.clientX - rect.left) / rect.width * 100;
+    const y = (e.clientY - rect.top) / rect.height * 100;
+    const newHot = { id: uid(), x: x, y: y, color: '#ff6b6b', size: 22, title: 'New hotspot', text: 'Edit this description' };
+    scene.hotspots.push(newHot);
+    const el = makeHotspotElement(newHot);
+    sceneEl.appendChild(el);
+    selectHotspot(newHot.id);
+    saveToTemp();
+    rebuildHotspotList();
+  });
+
+  // -------------------------
+  // Helpers: file reader, download
+  // -------------------------
+  function readFileAsDataURL(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => rej(r.error);
+      r.readAsDataURL(file);
+    });
+  }
+  function readFileAsText(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.onerror = () => rej(r.error);
+      r.readAsText(file);
+    });
+  }
+  function downloadData(str, filename, mime) {
+    const blob = new Blob([str], { type: mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  // -------------------------
+  // Convert Google Drive share link to direct 'uc?export=view' url
+  // Accepts various drive link formats and returns a direct usable URL
+  // -------------------------
+  function convertDriveUrlToDirect(url) {
+    try {
+      // If already looks like a data: or http(s) direct image, return as-is
+      if(url.startsWith('data:') || url.match(/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp|svg)(?:$|\?)/i)) return url;
+      // Patterns for standard google drive share links
+      // /file/d/FILEID/view?...  or ?id=FILEID
+      const m1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+      if(m1 && m1[1]) return `https://drive.google.com/uc?export=view&id=${m1[1]}`;
+      const m2 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if(m2 && m2[1]) return `https://drive.google.com/uc?export=view&id=${m2[1]}`;
+      // fallback: return original (might work)
+      return url;
+    } catch (e) {
+      return url;
+    }
+  }
+
+  // -------------------------
+  // Check image is loadable (try to fetch as blob then createObjectURL)
+  // -------------------------
+  async function checkImageLoadable(url) {
+    // attempt to fetch (CORS might block, but for Drive links it often allows view)
+    const res = await fetch(url, {mode:'cors'});
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const blob = await res.blob();
+    // lightweight check: ensure it's an image
+    if(!blob.type.startsWith('image/')) throw new Error('Fetched resource is not an image (type: ' + blob.type + ')');
+    // We won't store objectURL permanently, but it's a good check
+    return true;
+  }
+
+  // -------------------------
+  // Apply loaded scene object (from file or fetched JSON)
+  // -------------------------
+  async function applyLoadedScene(obj) {
+    if(!obj || !Array.isArray(obj.hotspots)) throw new Error('Invalid scene JSON (missing hotspots)');
+    // reset
+    scene.hotspots = obj.hotspots.map(h => ({ id: h.id || uid(), x: h.x, y: h.y, color: h.color || '#ff6b6b', size: h.size || 22, title: h.title || 'Hotspot', text: h.text || '' }));
+    foundSet.clear();
+    // prefer imageURL if provided
+    if(obj.imageURL) {
+      const direct = convertDriveUrlToDirect(obj.imageURL);
+      // attempt to load
+      try {
+        await checkImageLoadable(direct);
+        scene.imageURL = direct;
+        scene.imageDataUrl = null;
+        renderScene();
+        return;
+      } catch (err) {
+        throw new Error('Could not fetch image from provided URL. ' + err.message);
+      }
+    }
+    // else if embedded data present
+    if(obj.imageDataUrl) {
+      scene.imageDataUrl = obj.imageDataUrl;
+      scene.imageURL = null;
+      renderScene();
+      return;
+    }
+    // fallback: no image in JSON (old style expects a local image)
+    scene.imageDataUrl = null; scene.imageURL = null;
+    renderScene();
+    alert('This scene does not include an image. Please load the matching image file manually (Upload Image).');
+  }
+
+  // -------------------------
+  // Save temp to localStorage (optional autosave)
+  // -------------------------
+  const LS_KEY = 'hotspot-studio-url-scene-v1';
+  function saveToTemp() {
+    try {
+      const exportObj = { hotspots: scene.hotspots.slice() };
+      if(scene.imageURL) exportObj.imageURL = scene.imageURL;
+      else if(scene.imageDataUrl) exportObj.imageDataUrl = scene.imageDataUrl;
+      localStorage.setItem(LS_KEY, JSON.stringify(exportObj));
+    } catch(e){}
+  }
+  function loadFromTemp() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return;
+      const obj = JSON.parse(raw);
+      if(obj) applyLoadedScene(obj).catch(()=>{});
+    } catch(e){}
+  }
+  loadFromTemp();
+
+  // -------------------------
+  // Utility: apply saved hotspot changes to DOM list
+  // -------------------------
+  function saveAndRebuild() { saveToTemp(); rebuildHotspotList(); }
+
+  // -------------------------
+  // Helper to download JSON (done above) and other utilities
+  // -------------------------
+  function downloadData(str, filename, mime) {
+    const blob = new Blob([str], { type: mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }
+
+  // -------------------------
+  // Small helpers again (dup safe)
+  // -------------------------
+  function readFileAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsDataURL(file); }); }
+  function readFileAsText(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=()=>rej(r.error); r.readAsText(file); }); }
+
+  // -------------------------
+  // Initial render (empty)
+  // -------------------------
+  renderScene();
+
+  // -------------------------
+  // expose for debugging if needed
+  // -------------------------
+  window.HotspotStudioURL = {
+    getScene: () => scene,
+    loadSceneObject: (obj) => applyLoadedScene(obj)
+  };
+
+})(); // end IIFE
+</script>
+</body>
+</html>
