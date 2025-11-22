@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Hotspot Studio — Clean URL Edition</title>
+<title>Hotspot Studio — Final Edition</title>
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
 :root{--navy:#06283d;--offwhite:#f9f8f4;--accent:#4f9d69;--muted:#476072;}
@@ -23,8 +23,6 @@ button.ghost{background:transparent;border:1px solid rgba(6,40,61,0.12);color:va
 .label{position:absolute;top:-200%;left:50%;transform:translateX(-50%);background:#fff;padding:8px 10px;border-radius:8px;box-shadow:0 8px 22px rgba(6,40,61,0.12);display:none;color:var(--navy);min-width:150px;}
 .hotspot:hover .label{display:block;}
 .list{margin-top:8px;max-height:200px;overflow:auto;}
-.item{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;margin-bottom:6px;background:rgba(6,40,61,0.02);}
-.mini{width:18px;height:18px;border-radius:50%;}
 .footer{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;margin-top:12px;}
 </style>
 </head>
@@ -34,12 +32,12 @@ button.ghost{background:transparent;border:1px solid rgba(6,40,61,0.12);color:va
     <h1>Hotspot Studio</h1>
     <div class="smallmuted credit">- Will Salter</div>
     <div class="top-controls">
-      <label for="fileImage" style="cursor:pointer;background:#06283d;color:#fff;padding:8px 12px;border-radius:8px;">📁 Upload image</label>
+      <label for="fileImage" style="cursor:pointer;">📁 Upload image</label>
       <input type="file" id="fileImage" accept="image/*" style="display:none;" />
 
       <button id="btnLoadImageUrl">🔗 Load Image from URL</button>
 
-      <label for="fileScene" style="cursor:pointer;background:#06283d;color:#fff;padding:8px 12px;border-radius:8px;">📂 Load Scene</label>
+      <label for="fileScene" style="cursor:pointer;">📂 Load Scene</label>
       <input type="file" id="fileScene" accept="application/json" style="display:none;" />
 
       <button id="btnSave" class="ghost">💾 Save JSON</button>
@@ -81,7 +79,6 @@ button.ghost{background:transparent;border:1px solid rgba(6,40,61,0.12);color:va
   let foundSet = new Set();
 
   function uid(){return 'h'+Math.random().toString(36).slice(2,9);}
-  function pct(v){return Math.round(v*100)/100;}
   function escapeHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
   function readFileAsDataURL(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsDataURL(file);});}
@@ -90,23 +87,18 @@ button.ghost{background:transparent;border:1px solid rgba(6,40,61,0.12);color:va
 
   function convertDriveUrlToDirect(url){
     try{
-      if(url.startsWith('data:')||url.match(/^https?:\/\/.+\.(png|jpg|jpeg|gif|webp|svg)(?:$|\?)/i))return url;
       const m1=url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);if(m1&&m1[1])return `https://drive.google.com/uc?export=view&id=${m1[1]}`;
       const m2=url.match(/[?&]id=([a-zA-Z0-9_-]+)/);if(m2&&m2[1])return `https://drive.google.com/uc?export=view&id=${m2[1]}`;
       return url;
     }catch(e){return url;}
   }
 
-  async function checkImageLoadable(url){const res=await fetch(url,{mode:'cors'});if(!res.ok)throw new Error('HTTP '+res.status);const blob=await res.blob();if(!blob.type.startsWith('image/'))throw new Error('Not an image');return true;}
-
   async function applyLoadedScene(obj){
     if(!obj || !Array.isArray(obj.hotspots)) throw new Error('Invalid JSON');
     scene.hotspots=obj.hotspots.map(h=>({id:h.id||uid(),x:h.x,y:h.y,color:h.color||'#ff6b6b',size:h.size||22,title:h.title||'Hotspot',text:h.text||''}));
     foundSet.clear();
     if(obj.imageURL){
-      const direct=convertDriveUrlToDirect(obj.imageURL);
-      await checkImageLoadable(direct);
-      scene.imageURL=direct; scene.imageDataUrl=null;
+      scene.imageURL=convertDriveUrlToDirect(obj.imageURL); scene.imageDataUrl=null;
       renderScene(); return;
     }
     if(obj.imageDataUrl){scene.imageDataUrl=obj.imageDataUrl;scene.imageURL=null;renderScene();return;}
@@ -119,10 +111,8 @@ button.ghost{background:transparent;border:1px solid rgba(6,40,61,0.12);color:va
     const img=document.createElement('img');img.draggable=false;
     img.src=scene.imageURL||scene.imageDataUrl;
     sceneEl.appendChild(img);
-    img.onload=()=>{
-      scene.hotspots.forEach(h=>{sceneEl.appendChild(makeHotspotElement(h));});
-    };
-    img.onerror=()=>{alert('Failed to load image. Make sure link is valid and accessible.');scene.imageDataUrl=null;scene.imageURL=null;scene.hotspots=[];sceneEl.innerHTML='';sceneEl.appendChild(emptyPrompt);}
+    img.onload=()=>scene.hotspots.forEach(h=>{sceneEl.appendChild(makeHotspotElement(h));});
+    img.onerror=()=>{alert('Failed to load image.'); sceneEl.innerHTML='';sceneEl.appendChild(emptyPrompt);}
   }
 
   function makeHotspotElement(h){
@@ -144,9 +134,8 @@ button.ghost{background:transparent;border:1px solid rgba(6,40,61,0.12);color:va
     completionEl.textContent=scene.hotspots.length>0?`Found ${foundSet.size} of ${scene.hotspots.length} hotspots (${Math.round(foundSet.size/scene.hotspots.length*100)}%)`:'';
   }
 
-  // Event listeners
   fileImage.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const dataUrl=await readFileAsDataURL(f);scene.imageDataUrl=dataUrl;scene.imageURL=null;scene.hotspots=[];foundSet.clear();renderScene();fileImage.value='';});
-  btnLoadImageUrl.addEventListener('click',async()=>{const url=prompt('Paste an image URL (or Google Drive share link):');if(!url)return;try{const direct=convertDriveUrlToDirect(url.trim());await checkImageLoadable(direct);scene.imageURL=direct;scene.imageDataUrl=null;scene.hotspots=[];foundSet.clear();renderScene();alert('Image loaded from URL.');}catch(err){alert('Could not load image: '+err.message);}});
+  btnLoadImageUrl.addEventListener('click',async()=>{const url=prompt('Paste an image URL (or Google Drive share link):');if(!url)return;scene.imageURL=convertDriveUrlToDirect(url.trim());scene.imageDataUrl=null;scene.hotspots=[];foundSet.clear();renderScene();});
   fileScene.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const text=await readFileAsText(f);await applyLoadedScene(JSON.parse(text));fileScene.value='';});
   btnSave.addEventListener('click',()=>{const exportObj={hotspots:scene.hotspots.slice()};if(scene.imageURL)exportObj.imageURL=scene.imageURL;else if(scene.imageDataUrl)exportObj.imageDataUrl=scene.imageDataUrl;downloadData(JSON.stringify(exportObj,null,2),'hotspot-scene.json','application/json');});
   btnUndo.addEventListener('click',()=>{scene.hotspots.pop();renderScene();});
